@@ -42,7 +42,7 @@ type TableLeafPage struct {
 
 func (TableLeafPage) isPage() {}
 
-func DecodePage(buffer []byte, pageNum int) (Page, error) {
+func decodePage(buffer []byte, pageNum int) (Page, error) {
 	var ptrOffset uint16
 	if pageNum == 1 {
 		ptrOffset = uint16(HEADER_SIZE)
