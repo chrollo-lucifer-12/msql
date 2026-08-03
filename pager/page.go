@@ -11,13 +11,15 @@ type PageType uint8
 const (
 	TableLeaf PageType = iota
 )
+
 const (
 	PAGE_LEAF_HEADER_SIZE              uint = 8
 	PAGE_FIRST_FREEBLOCK_OFFSET        uint = 1
 	PAGE_CELL_COUNT_OFFSET             uint = 3
 	PAGE_CELL_CONTENT_OFFSET           uint = 5
 	PAGE_FRAGMENTED_BYTES_COUNT_OFFSET uint = 7
-	PAGE_LEAF_TABLE_ID                      = 0x0D
+
+	PAGE_LEAF_TABLE_ID = 0x0D
 )
 
 type Page interface {
@@ -26,15 +28,15 @@ type Page interface {
 
 type PageHeader struct {
 	PageType          PageType
-	FirstFreeBlock    uint16 // offset of first free block
-	CellCount         uint16 // no of cells in page
-	CellContentOffset uint32 // offset of the first cell
-	FragmentedBytes   uint8  // no of fragmented free bytes
+	FirstFreeBlock    uint16
+	CellCount         uint16
+	CellContentOffset uint32
+	FragmentedBytes   uint8
 }
 
 type TableLeafCell struct {
-	Size    int64 // varint
-	RowID   int64 // varint
+	Size    int64
+	RowID   int64
 	Payload []byte
 }
 
@@ -47,33 +49,38 @@ type TableLeafPage struct {
 func (TableLeafPage) isPage() {}
 
 func decodePage(buffer []byte, pageNum int) (Page, error) {
-	var ptrOffset uint16
+	var pageOffset uint
 	if pageNum == 1 {
-		ptrOffset = uint16(HEADER_SIZE)
+		pageOffset = HEADER_SIZE
 	}
-
-	switch buffer[0] {
+	if len(buffer) <= int(pageOffset) {
+		return nil, fmt.Errorf("page too small")
+	}
+	switch buffer[pageOffset] {
 	case PAGE_LEAF_TABLE_ID:
-		return decodeTableLeafPage(buffer, ptrOffset), nil
-
+		page := decodeTableLeafPage(buffer, pageOffset)
+		return &page, nil
 	default:
-		return nil, fmt.Errorf("unknown page type: %d", buffer[0])
+		return nil, fmt.Errorf(
+			"unknown page type: %d",
+			buffer[pageOffset],
+		)
 	}
 }
 
-func decodeTableLeafPage(buffer []byte, ptrOffset uint16) TableLeafPage {
-	header := decodePageHeader(buffer)
-	contentBuffer := buffer[PAGE_LEAF_HEADER_SIZE:]
-
-	cellPointers := decodeCellPointers(contentBuffer, uint(header.CellCount), ptrOffset)
-
+func decodeTableLeafPage(buffer []byte, pageOffset uint) TableLeafPage {
+	page := buffer[pageOffset:]
+	header := decodePageHeader(page)
+	cellPointers := decodeCellPointers(
+		page[PAGE_LEAF_HEADER_SIZE:],
+		uint(header.CellCount),
+	)
 	cells := make([]TableLeafCell, 0, len(cellPointers))
-
 	for _, ptr := range cellPointers {
-		cell := decodeTableLeafCell(buffer[ptr:])
+		cellOffset := uint(ptr)
+		cell := decodeTableLeafCell(buffer[cellOffset:])
 		cells = append(cells, cell)
 	}
-
 	return TableLeafPage{
 		Header:       header,
 		CellPointers: cellPointers,
@@ -83,44 +90,61 @@ func decodeTableLeafPage(buffer []byte, ptrOffset uint16) TableLeafPage {
 
 func decodePageHeader(buffer []byte) PageHeader {
 	pageType := buffer[0]
-	firstFreeBlock := utils.ReadBEWordAt(buffer, int(PAGE_FIRST_FREEBLOCK_OFFSET))
-	cellCount := utils.ReadBEWordAt(buffer, int(PAGE_CELL_COUNT_OFFSET))
-	cellContentOffset := utils.ReadBEWordAt(buffer, int(PAGE_CELL_CONTENT_OFFSET))
-	fragmentedBytesCount := utils.ReadBEWordAt(buffer, int(PAGE_FRAGMENTED_BYTES_COUNT_OFFSET))
+
+	firstFreeBlock := utils.ReadBEWordAt(
+		buffer,
+		int(PAGE_FIRST_FREEBLOCK_OFFSET),
+	)
+
+	cellCount := utils.ReadBEWordAt(
+		buffer,
+		int(PAGE_CELL_COUNT_OFFSET),
+	)
+
+	cellContentOffset := utils.ReadBEWordAt(
+		buffer,
+		int(PAGE_CELL_CONTENT_OFFSET),
+	)
+
+	fragmentedBytes := buffer[PAGE_FRAGMENTED_BYTES_COUNT_OFFSET]
 
 	return PageHeader{
 		PageType:          PageType(pageType),
 		FirstFreeBlock:    firstFreeBlock,
 		CellCount:         cellCount,
 		CellContentOffset: uint32(cellContentOffset),
-		FragmentedBytes:   uint8(fragmentedBytesCount),
+		FragmentedBytes:   fragmentedBytes,
 	}
 }
 
-func decodeCellPointers(buffer []byte, n uint, offset uint16) []uint16 {
+func decodeCellPointers(buffer []byte, n uint) []uint16 {
 	pointers := make([]uint16, 0, n)
 
 	for i := 0; i < int(n); i++ {
-		ptr := utils.ReadBEWordAt(buffer, 2*i)
-		pointers = append(pointers, offset-ptr)
+		ptr := utils.ReadBEWordAt(
+			buffer,
+			i*2,
+		)
+
+		pointers = append(pointers, ptr)
 	}
 
 	return pointers
 }
 
 func decodeTableLeafCell(buffer []byte) TableLeafCell {
-	n, size := utils.DecodeVarint(buffer, 0)
+	n, payloadSize := utils.DecodeVarint(buffer, 0)
 	buffer = buffer[n:]
 
-	n, rowId := utils.DecodeVarint(buffer, 0)
+	n, rowID := utils.DecodeVarint(buffer, 0)
 	buffer = buffer[n:]
 
-	payload := make([]byte, size)
-	copy(payload, buffer[:size])
+	payload := make([]byte, payloadSize)
+	copy(payload, buffer[:payloadSize])
 
 	return TableLeafCell{
-		Size:    size,
-		RowID:   rowId,
+		Size:    payloadSize,
+		RowID:   rowID,
 		Payload: payload,
 	}
 }

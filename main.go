@@ -11,25 +11,22 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("missing db file")
 		os.Exit(1)
 	}
 
 	database, err := db.FromFile(os.Args[1])
 	if err != nil {
-		fmt.Errorf("open database: %w", err)
 		os.Exit(1)
 	}
 
 	err = cli(database)
 	if err != nil {
-		fmt.Errorf("cli error: %w", err)
 		os.Exit(1)
 	}
 }
 
 func cli(database *db.Db) error {
-	if err := printFlushed("rqlite> "); err != nil {
+	if err := printFlushed("mqlite> "); err != nil {
 		return err
 	}
 
@@ -54,7 +51,7 @@ func cli(database *db.Db) error {
 			fmt.Printf("Unrecognized command '%s'\n", strings.TrimSpace(line))
 		}
 
-		if err := printFlushed("\nrqlite> "); err != nil {
+		if err := printFlushed("\nmqlite> "); err != nil {
 			return err
 		}
 	}
@@ -63,27 +60,43 @@ func cli(database *db.Db) error {
 }
 
 func displayTables(database *db.Db) error {
+
 	scanner := database.GetScanner(1)
 
 	for {
-		record, err := scanner.NextRecord()
+
+		cursor, err := scanner.NextRecord()
 
 		if err != nil {
-			fmt.Printf("error displaying: %w", err)
 			break
 		}
 
-		typeValue := record.Field(0)
+		if cursor == nil {
+			break
+		}
+
+		typeValue := cursor.Field(0)
+
+		if typeValue == nil {
+			continue
+		}
 
 		value, ok := typeValue.AsString()
+
 		if !ok {
 			continue
 		}
 
 		if value == "table" {
-			nameValue := record.Field(1)
+
+			nameValue := cursor.Field(1)
+
+			if nameValue == nil {
+				continue
+			}
 
 			name, ok := nameValue.AsString()
+
 			if ok {
 				fmt.Printf("%s ", name)
 			}
@@ -94,11 +107,9 @@ func displayTables(database *db.Db) error {
 }
 
 func printFlushed(s string) error {
-	fmt.Print(s)
-
-	err := os.Stdout.Sync()
+	_, err := fmt.Print(s)
 	if err != nil {
-		return fmt.Errorf("flush stdout: %w", err)
+		return fmt.Errorf("write stdout: %w", err)
 	}
 
 	return nil

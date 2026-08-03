@@ -52,6 +52,6 @@ func (p *Pager) loadPage(n uint) (Page, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode page: %w", err)
 	}
-
+	p.pages[n] = page
 	return page, nil
 }

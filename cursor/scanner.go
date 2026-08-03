@@ -31,6 +31,10 @@ func (s *Scanner) NextRecord() (*Cursor, error) {
 		return nil, fmt.Errorf("wrong page type")
 	}
 
+	if int(s.cell) >= len(leaf.Cells) {
+		return nil, nil
+	}
+
 	cell := leaf.Cells[s.cell]
 	header, err := parseRecordHeader(cell.Payload)
 	if err != nil {
