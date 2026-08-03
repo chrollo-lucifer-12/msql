@@ -14,7 +14,7 @@ type Db struct {
 	pager  *pager.Pager
 }
 
-func (d *Db) FromFile(filename string) (*Db, error) {
+func FromFile(filename string) (*Db, error) {
 	file, err := os.OpenFile(filename, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
