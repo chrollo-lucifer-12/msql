@@ -1,9 +1,10 @@
 package pager
 
 import (
-	"encoding/binary"
 	"fmt"
 	"strings"
+
+	"github.com/msql/utils"
 )
 
 type DbHeader struct {
@@ -26,7 +27,7 @@ func ParseHeader(buffer []byte) (DbHeader, error) {
 		return DbHeader{}, errInvalidHeaderPrefix(string(buffer)[0:HEADER_PAGE_SIZE_OFFSET])
 	}
 
-	pageSizeRaw := readBEWordAt(buffer, int(HEADER_PAGE_SIZE_OFFSET))
+	pageSizeRaw := utils.ReadBEWordAt(buffer, int(HEADER_PAGE_SIZE_OFFSET))
 
 	var pageSize uint32
 
@@ -42,8 +43,4 @@ func ParseHeader(buffer []byte) (DbHeader, error) {
 	return DbHeader{
 		PageSize: pageSize,
 	}, nil
-}
-
-func readBEWordAt(buffer []byte, offset int) uint16 {
-	return binary.BigEndian.Uint16(buffer[offset:])
 }

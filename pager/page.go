@@ -1,6 +1,10 @@
 package pager
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/msql/utils"
+)
 
 type PageType uint8
 
@@ -79,10 +83,10 @@ func decodeTableLeafPage(buffer []byte, ptrOffset uint16) TableLeafPage {
 
 func decodePageHeader(buffer []byte) PageHeader {
 	pageType := buffer[0]
-	firstFreeBlock := readBEWordAt(buffer, int(PAGE_FIRST_FREEBLOCK_OFFSET))
-	cellCount := readBEWordAt(buffer, int(PAGE_CELL_COUNT_OFFSET))
-	cellContentOffset := readBEWordAt(buffer, int(PAGE_CELL_CONTENT_OFFSET))
-	fragmentedBytesCount := readBEWordAt(buffer, int(PAGE_FRAGMENTED_BYTES_COUNT_OFFSET))
+	firstFreeBlock := utils.ReadBEWordAt(buffer, int(PAGE_FIRST_FREEBLOCK_OFFSET))
+	cellCount := utils.ReadBEWordAt(buffer, int(PAGE_CELL_COUNT_OFFSET))
+	cellContentOffset := utils.ReadBEWordAt(buffer, int(PAGE_CELL_CONTENT_OFFSET))
+	fragmentedBytesCount := utils.ReadBEWordAt(buffer, int(PAGE_FRAGMENTED_BYTES_COUNT_OFFSET))
 
 	return PageHeader{
 		PageType:          PageType(pageType),
@@ -97,7 +101,7 @@ func decodeCellPointers(buffer []byte, n uint, offset uint16) []uint16 {
 	pointers := make([]uint16, 0, n)
 
 	for i := 0; i < int(n); i++ {
-		ptr := readBEWordAt(buffer, 2*i)
+		ptr := utils.ReadBEWordAt(buffer, 2*i)
 		pointers = append(pointers, offset-ptr)
 	}
 
@@ -105,10 +109,10 @@ func decodeCellPointers(buffer []byte, n uint, offset uint16) []uint16 {
 }
 
 func decodeTableLeafCell(buffer []byte) TableLeafCell {
-	n, size := decodeVarint(buffer, 0)
+	n, size := utils.DecodeVarint(buffer, 0)
 	buffer = buffer[n:]
 
-	n, rowId := decodeVarint(buffer, 0)
+	n, rowId := utils.DecodeVarint(buffer, 0)
 	buffer = buffer[n:]
 
 	payload := make([]byte, size)
@@ -119,30 +123,4 @@ func decodeTableLeafCell(buffer []byte) TableLeafCell {
 		RowID:   rowId,
 		Payload: payload,
 	}
-}
-
-func decodeVarint(buffer []byte, offset int) (uint8, int64) {
-	var size uint8
-	var result int64
-
-	for size < 9 {
-		currentByte := buffer[offset]
-		continuationBit := (currentByte >> 7) & 1
-		dataBits := currentByte & 0x7F
-
-		if size == 8 {
-			result = (result << 8) | int64(currentByte)
-		} else {
-			result = (result << 7) | int64(dataBits)
-		}
-
-		size++
-		offset++
-
-		if continuationBit == 0 {
-			break
-		}
-	}
-
-	return size, result
 }
