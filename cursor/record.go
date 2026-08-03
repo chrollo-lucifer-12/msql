@@ -6,10 +6,13 @@ import (
 	"github.com/msql/utils"
 )
 
-type RecordFieldType int
+type RecordFieldType struct {
+	Kind int
+	Size int
+}
 
 const (
-	NULL RecordFieldType = iota
+	NULL = iota
 	I8
 	I16
 	I24
@@ -34,14 +37,15 @@ type RecordHeader struct {
 
 func parseRecordHeader(buffer []byte) (*RecordHeader, error) {
 	size, headerLength := utils.DecodeVarint(buffer, 0)
-	buffer = buffer[size:headerLength]
+
+	buffer = buffer[size:int(headerLength)]
 
 	fields := make([]RecordField, 0)
-	currentOffset := headerLength
+	currentOffset := int(headerLength)
 
 	for len(buffer) > 0 {
 		discriminantSize, discriminant := utils.DecodeVarint(buffer, 0)
-		buffer = buffer[discriminantSize:]
+		buffer = buffer[int(discriminantSize):]
 
 		var (
 			fieldType RecordFieldType
@@ -50,67 +54,75 @@ func parseRecordHeader(buffer []byte) (*RecordHeader, error) {
 
 		switch {
 		case discriminant == 0:
-			fieldType = NULL
+			fieldType = RecordFieldType{Kind: NULL}
 			fieldSize = 0
 
 		case discriminant == 1:
-			fieldType = I8
+			fieldType = RecordFieldType{Kind: I8}
 			fieldSize = 1
 
 		case discriminant == 2:
-			fieldType = I16
+			fieldType = RecordFieldType{Kind: I16}
 			fieldSize = 2
 
 		case discriminant == 3:
-			fieldType = I24
+			fieldType = RecordFieldType{Kind: I24}
 			fieldSize = 3
 
 		case discriminant == 4:
-			fieldType = I32
+			fieldType = RecordFieldType{Kind: I32}
 			fieldSize = 4
 
 		case discriminant == 5:
-			fieldType = I48
+			fieldType = RecordFieldType{Kind: I48}
 			fieldSize = 6
 
 		case discriminant == 6:
-			fieldType = I64
+			fieldType = RecordFieldType{Kind: I64}
 			fieldSize = 8
 
 		case discriminant == 7:
-			fieldType = Float
+			fieldType = RecordFieldType{Kind: Float}
 			fieldSize = 8
 
 		case discriminant == 8:
-			fieldType = Zero
+			fieldType = RecordFieldType{Kind: Zero}
 			fieldSize = 0
 
 		case discriminant == 9:
-			fieldType = One
+			fieldType = RecordFieldType{Kind: One}
 			fieldSize = 0
 
 		case discriminant >= 12 && discriminant%2 == 0:
 			size := int((discriminant - 12) / 2)
-			fieldType = Blob
+
+			fieldType = RecordFieldType{
+				Kind: Blob,
+				Size: size,
+			}
+
 			fieldSize = size
 
 		case discriminant >= 13 && discriminant%2 == 1:
 			size := int((discriminant - 13) / 2)
-			fieldType = String
+
+			fieldType = RecordFieldType{
+				Kind: String,
+				Size: size,
+			}
+
 			fieldSize = size
 
 		default:
 			return nil, fmt.Errorf("unsupported field type: %d", discriminant)
 		}
 
-		fields = append(fields,
-			RecordField{
-				Offset:    uint(currentOffset),
-				FieldType: fieldType,
-			},
-		)
+		fields = append(fields, RecordField{
+			Offset:    uint(currentOffset),
+			FieldType: fieldType,
+		})
 
-		currentOffset += int64(fieldSize)
+		currentOffset += fieldSize
 	}
 
 	return &RecordHeader{

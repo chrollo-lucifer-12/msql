@@ -20,9 +20,9 @@ func NewPager(input *os.File, pageSize uint) *Pager {
 	}
 }
 
-func (p *Pager) ReadPage(n uint) (*Page, error) {
+func (p *Pager) ReadPage(n uint) (Page, error) {
 	if page, ok := p.pages[n]; ok == true {
-		return &page, nil
+		return page, nil
 	}
 
 	page, err := p.loadPage(n)
@@ -33,7 +33,7 @@ func (p *Pager) ReadPage(n uint) (*Page, error) {
 	return page, nil
 }
 
-func (p *Pager) loadPage(n uint) (*Page, error) {
+func (p *Pager) loadPage(n uint) (Page, error) {
 	offset := (n - 1) * p.pageSize
 
 	_, err := p.input.Seek(int64(offset), io.SeekStart)
@@ -53,5 +53,5 @@ func (p *Pager) loadPage(n uint) (*Page, error) {
 		return nil, fmt.Errorf("decode page: %w", err)
 	}
 
-	return &page, nil
+	return page, nil
 }
